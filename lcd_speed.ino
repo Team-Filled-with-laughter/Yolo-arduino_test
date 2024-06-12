@@ -16,7 +16,6 @@ bool isEmergency = false;
 
 int v1 = 0;
 int v2 = 0;
-int buffer = 0;
 
 void setup() {
   Serial.begin(115200);  // 시리얼 통신을 115200 보드레이트로 초기화
@@ -30,63 +29,49 @@ void setup() {
 void speedCheck1() {
   while (digitalRead(Sigpin1));
   while (!digitalRead(Sigpin1));
-  unsigned long T = pulseIn(Sigpin1, HIGH) + pulseIn(Sigpin1, LOW); 
+  unsigned long T = pulseIn(Sigpin1, HIGH, 1000000) + pulseIn(Sigpin1, LOW, 1000000); // 타임아웃 1초 설정
 
   if (T != 0)
   {
     double frequency = 1.0 / (double)T;
     v1 = int((frequency * 1e6) / 44.0);
 
-    if (v1 <= 120) 
-    {
-      Serial.print("v1 Speed: ");
-      Serial.print(v1);
-      Serial.println(" km/h");
+    if (v1 > 120) {
+      v1 = 0;
     }
-    else // 속도 이상값 
-    {
-      Serial.print("Velocity Outlier!");
-    }
+  } 
+  else { // 측정이 안된경우 
+    v1 = 0;
   }
-  else 
-  { // 측정이 안된경우 
-    Serial.print("No sensing!");
-  }
+  lcd.setCursor(0, 1);
+  lcd.print(v1);
 }
 
 void speedCheck2() {
   while (digitalRead(Sigpin2));
   while (!digitalRead(Sigpin2));
-  unsigned long T = pulseIn(Sigpin2, HIGH) + pulseIn(Sigpin2, LOW); // 0.1s안에 HIGH값 안들어오면 0처리
+  unsigned long T = pulseIn(Sigpin2, HIGH, 1000000) + pulseIn(Sigpin2, LOW, 1000000); // 타임아웃 1초 설정
 
   if (T != 0)
   {
     double frequency = 1.0 / (double)T;
     v2 = int((frequency * 1e6) / 44.0);
 
-    if (v2 <= 120) 
-    {
-      Serial.print("v2 Speed: ");
-      Serial.print(v2);
-      Serial.println(" km/h");
+    if (v2 > 120) {
+      v2 = 0;
     }
-    else // 속도 이상값 
-    {
-      Serial.print("Velocity Outlier!");
-    }
+  } 
+  else { // 측정이 안된경우 
+    v2 = 0;
   }
-  else 
-  { // 측정이 안된경우 
-    Serial.print("No sensing!");
-  }
+  lcd.setCursor(5, 1);
+  lcd.print(v2);
 }
 
 void detectEmergency() {
-  buffer = Serial.available();  // 시리얼 버퍼에 있는 바이트 수를 읽음
-  
   if (Serial.available() > 0) {
     char received = Serial.read();
-    isEmergency = (received == '1') ? true : false; // 수정
+    isEmergency = (received == '1');
 
     lcd.clear();  // LCD 화면 지우기
     lcd.setCursor(0, 0);  // 커서를 첫 번째 줄 첫 번째 열로 설정
@@ -97,20 +82,26 @@ void detectEmergency() {
       lcd.print("ambulance");  // 비상 상황이면 "ambulance" 출력
     }
 
-    lcd.setCursor(11, 0);  // 커서를 두 번째 줄 첫 번째 열로 설정
-    lcd.print(buffer);  // 시리얼 버퍼에 있는 바이트 수 출력
-    lcd.setCursor(0, 1);
-    lcd.print(v1);
-    lcd.setCursor(5, 1);
-    lcd.print(v2);
+    lcd.setCursor(11, 0);  // 커서를 첫 번째 줄 11번째 열로 설정
+    lcd.print((int)Serial.available());  // 시리얼 버퍼에 있는 바이트 수 출력
   }
 }
 
 void loop() {
+  static unsigned long lastCheck1 = 0;
+  static unsigned long lastCheck2 = 0;
+  unsigned long currentMillis = millis();
 
-  speedCheck1();
-  speedCheck2();
+  if (currentMillis - lastCheck1 >= 1000) { 
+    lastCheck1 = currentMillis;
+    speedCheck1();
+  }
+
+  // speedCheck2을 1초마다 실행
+  if (currentMillis - lastCheck2 >= 1000) { 
+    lastCheck2 = currentMillis;
+    speedCheck2();
+  }
 
   detectEmergency();
-  
 }
